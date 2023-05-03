@@ -50,7 +50,7 @@ class FusedBiasGELU(torch.nn.Module):
         super().__init__()
         self.bias = torch.nn.Parameter(torch.empty(size, **factory_kwargs))
         self.fused = fused
-        self.reset_parameters(prev_weight)
+        #self.reset_parameters(prev_weight)
 
     def reset_parameters(self, prev_weight=None):
         range = (0, 1)

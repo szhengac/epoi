@@ -9,7 +9,8 @@ import torch
 from torch import nn
 
 try:
-    from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_triton_func
+    #from flash_attn.flash_attn_triton import flash_attn_func as flash_attn_triton_func
+    from flash_attn.flash_attn_interface import flash_attn_unpadded_func as flash_attn_triton_func
 except ImportError:
     flash_attn_triton_func = None
 
@@ -125,15 +126,42 @@ class FlashAttentionTritonOp(nn.Module):
             print_once(
                 "WARNING: bias gradient is not supported yet. The given mask will be ignored"
             )
+        #ret = self.attn_fn(
+        #    query_layer,
+        #    key_layer,
+        #    value_layer,
+        #    None,  # bias
+        #    self.apply_causal_mask,  # causal
+        #    p,  # dropout_p
+        #    self.scale,  # softmax_scale
+        #)
+        # CUDA kernel in flash-attention requires qkv to be in
+        # [B x S, H, D] layout.
+        batch_size, seq_len, num_heads, head_size = query_layer.shape
+        query_layer, key_layer, value_layer = [
+            x.reshape(batch_size * seq_len, num_heads, head_size)
+            for x in (query_layer, key_layer, value_layer)
+        ]
+        cu_seqlens = torch.arange(
+            0,
+            (batch_size + 1) * seq_len,
+            step=seq_len,
+            dtype=torch.int32,
+            device=query_layer.device,
+        )
         ret = self.attn_fn(
             query_layer,
             key_layer,
             value_layer,
-            None,  # bias
-            self.apply_causal_mask,  # causal
-            p,  # dropout_p
-            self.scale,  # softmax_scale
+            cu_seqlens,
+            cu_seqlens,
+            seq_len,
+            seq_len,
+            p,
+            causal=self.apply_causal_mask,
+            softmax_scale=self.scale,
         )
+        ret = ret.reshape(batch_size, seq_len, num_heads, head_size)
         ret = ret.to(query_layer.dtype)
         return ret
 

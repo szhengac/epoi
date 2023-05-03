@@ -51,7 +51,7 @@ class InjectHFGPTAttentionPolicy(ModuleInjectPolicy):
             "is_decoder": True,
             "attn_pdrop": attn_pdrop,
             "resid_pdrop": resid_pdrop,
-            "attn_op_name": kwargs.get("attn_op_name", "cutlass"),
+            "attn_op_name": kwargs.get("attn_op_name", "triton"),
             "fused_qkv": isinstance(orig, GPT2Attention),
         }
         return args
@@ -66,7 +66,7 @@ class InjectHFGPTAttentionPolicy(ModuleInjectPolicy):
             "is_decoder": True,
             "attn_pdrop": attn_pdrop,
             "resid_pdrop": resid_pdrop,
-            "attn_op_name": kwargs.get("attn_op_name", "cutlass"),
+            "attn_op_name": kwargs.get("attn_op_name", "triton"),
             "fused_qkv": "GPT2" in config.architectures[0],
         }
         return new_args
@@ -112,7 +112,7 @@ class InjectHFGPTAttentionPolicy(ModuleInjectPolicy):
     @staticmethod
     def inject_module(**kwargs):
         """The custom module to inject."""
-        attn_op_name = kwargs.get("attn_op_name", "cutlass")
+        attn_op_name = kwargs.get("attn_op_name", "triton")
         from ...ops.xformers_attn import GenericSelfAttention
         from ...ops.flash_attention import FlashSelfAttention
 
@@ -256,7 +256,7 @@ class InjectHFGPTMLPPolicy(ModuleInjectPolicy):
                 super().__init__()
                 if orig_act == "gelu":
                     self.fc_in = torch.nn.Linear(hidden_size, intermediate_size, bias=False)
-                    self.act = FusedBiasGELU(intermediate_size, prev_weight=self.fc_in.weight)
+                    self.act = FusedBiasGELU(intermediate_size, prev_weight=None)
                 elif orig_act == "gelu_new":
                     self.fc_in = torch.nn.Linear(hidden_size, intermediate_size, bias=False)
                     self.act = FusedBiasNewGELU(intermediate_size, prev_weight=self.fc_in.weight)
